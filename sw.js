@@ -1,21 +1,1178 @@
-const CACHE_NAME = 'riyadiat-v1';
-const ASSETS = [
-  '/riyadiat/',
-  '/riyadiat/index.html',
-  '/riyadiat/manifest.json',
-  '/riyadiat/icons/icon-192x192.png',
-  '/riyadiat/icons/icon-512x512.png'
-];
- 
+const CACHE_NAME = 'riyadiat-v2';
+
+// الـ HTML الكامل مخزن مباشرة في الـ Service Worker
+const APP_HTML = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>الرياضيات السريعة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060b14;
+  --s1: #0d1520;
+  --s2: #152030;
+  --border: #1a3a5c;
+  --blue: #00aaff;
+  --orange: #ff6b00;
+  --purple: #9b59b6;
+  --red-mode: #e74c3c;
+  --green: #00e676;
+  --red: #ff1744;
+  --yellow: #ffc107;
+  --text: #e8f4fd;
+  --dim: #5a85aa;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'Cairo',sans-serif;
+  min-height:100vh; overflow-x:hidden;
+}
+
+/* ── PAGES ── */
+.page { display:none; min-height:100vh; flex-direction:column; }
+.page.show { display:flex; }
+
+/* ══════════════════════════════
+   HOME
+══════════════════════════════ */
+#pg-home {
+  align-items:center; justify-content:center;
+  padding:32px 22px; text-align:center;
+  position:relative; overflow:hidden;
+}
+.home-glow {
+  position:absolute; width:400px; height:400px;
+  border-radius:50%; top:50%; left:50%;
+  transform:translate(-50%,-60%);
+  background:radial-gradient(circle, rgba(0,170,255,0.07) 0%, transparent 70%);
+  pointer-events:none;
+}
+.app-emblem { font-size:58px; margin-bottom:10px; animation:float 3s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+.app-title {
+  font-family:'Tajawal',sans-serif; font-size:30px; font-weight:900;
+  background:linear-gradient(135deg, #00aaff, #0066cc);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text; margin-bottom:4px;
+}
+.app-sub { color:var(--dim); font-size:12px; margin-bottom:36px; }
+
+.home-cards { display:flex; flex-direction:column; gap:12px; width:100%; max-width:350px; }
+.hcard {
+  border-radius:18px; padding:20px 22px; cursor:pointer;
+  transition:transform 0.15s; text-align:right;
+  position:relative; overflow:hidden;
+  border:1.5px solid transparent;
+}
+.hcard:active { transform:scale(0.97); }
+.hcard-blue  { background:linear-gradient(135deg,#051a30,#0a2a45); border-color:rgba(0,170,255,0.3); }
+.hcard-orange{ background:linear-gradient(135deg,#1e0d00,#321500); border-color:rgba(255,107,0,0.3); }
+.hcard-purple{ background:linear-gradient(135deg,#150d20,#221535); border-color:rgba(155,89,182,0.3); }
+.hcard-hist  { background:var(--s1); border-color:var(--border); }
+.hcard-icon { font-size:28px; margin-bottom:8px; }
+.hcard-name { font-size:16px; font-weight:700; margin-bottom:3px; }
+.hcard-desc { font-size:11px; color:var(--dim); line-height:1.5; }
+
+.home-stats { display:flex; gap:24px; margin-top:28px; }
+.hs-num { font-size:20px; font-weight:900; color:var(--blue); text-align:center; font-family:'Tajawal',sans-serif; }
+.hs-lbl { font-size:10px; color:var(--dim); text-align:center; }
+
+/* ══════════════════════════════
+   SHARED SETUP
+══════════════════════════════ */
+.pg-setup { align-items:stretch; padding:0 18px 20px; }
+.pg-hdr {
+  display:flex; align-items:center; gap:12px;
+  padding:18px 0 16px; border-bottom:1px solid var(--border);
+  margin-bottom:18px; flex-shrink:0;
+}
+.btn-back {
+  width:36px; height:36px; border-radius:11px;
+  background:var(--s2); border:1px solid var(--border);
+  color:var(--text); font-size:18px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:transform 0.15s;
+}
+.btn-back:active { transform:scale(0.9); }
+.pg-ttl { font-size:17px; font-weight:700; }
+.setup-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:18px; padding-bottom:10px; }
+.setup-scroll::-webkit-scrollbar { width:2px; }
+.setup-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+.slbl { font-size:10px; font-weight:700; color:var(--dim); letter-spacing:1.2px; text-transform:uppercase; margin-bottom:9px; display:block; }
+.chips { display:flex; flex-wrap:wrap; gap:7px; }
+.chip {
+  padding:7px 15px; border-radius:50px;
+  background:var(--s2); border:1.5px solid var(--border);
+  color:var(--dim); font-size:12px; font-weight:700;
+  cursor:pointer; transition:all 0.15s; font-family:'Cairo',sans-serif;
+  user-select:none;
+}
+.chip:active { transform:scale(0.95); }
+.chip.cb { background:rgba(0,170,255,0.15); border-color:var(--blue); color:var(--blue); }
+.chip.co { background:rgba(255,107,0,0.15); border-color:var(--orange); color:var(--orange); }
+.chip.cp { background:rgba(155,89,182,0.15); border-color:var(--purple); color:#c39bd3; }
+
+.rrow { display:flex; align-items:center; gap:8px; }
+.rsel {
+  flex:1; background:var(--s2); border:1.5px solid var(--border);
+  color:var(--text); font-family:'Cairo',sans-serif;
+  font-size:12px; padding:9px 10px; border-radius:11px;
+  appearance:none; cursor:pointer; min-width:90px;
+}
+.rsel:focus { outline:none; border-color:var(--blue); }
+.rlbl { color:var(--dim); font-size:11px; white-space:nowrap; }
+
+.cntrow { display:flex; align-items:center; gap:8px; margin-top:10px; }
+.cnbtn {
+  width:36px; height:36px; border-radius:10px;
+  background:var(--s2); border:1px solid var(--border);
+  color:var(--text); font-size:22px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.cnbtn:active { background:rgba(0,170,255,0.2); }
+.num-input {
+  flex:1; text-align:center; font-family:'Tajawal',sans-serif;
+  font-size:22px; font-weight:700; color:var(--blue);
+  background:var(--s2); border:1.5px solid var(--blue);
+  border-radius:10px; padding:8px 4px;
+  outline:none; width:100%;
+}
+.num-input::placeholder { color:var(--dim); font-size:16px; }
+.num-input:focus { border-color:var(--blue); box-shadow:0 0 8px rgba(0,170,255,0.3); }
+
+.btn-go {
+  width:100%; padding:17px; border-radius:15px;
+  font-family:'Tajawal',sans-serif; font-size:17px; font-weight:900;
+  border:none; cursor:pointer; margin-top:16px; flex-shrink:0;
+  transition:transform 0.15s, opacity 0.15s;
+}
+.btn-go:active { transform:scale(0.97); opacity:0.85; }
+.go-blue   { background:linear-gradient(135deg,#0088dd,#005599); color:#fff; box-shadow:0 4px 18px rgba(0,136,221,0.35); }
+.go-orange { background:linear-gradient(135deg,#ff6b00,#cc4400); color:#fff; box-shadow:0 4px 18px rgba(255,107,0,0.35); }
+.go-purple { background:linear-gradient(135deg,#9b59b6,#6c3483); color:#fff; box-shadow:0 4px 18px rgba(155,89,182,0.35); }
+
+/* Advanced difficulty chips */
+.diff-chips { display:flex; gap:7px; flex-wrap:wrap; }
+
+/* ══════════════════════════════
+   QUIZ
+══════════════════════════════ */
+#pg-quiz { padding:0; }
+.qtop {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 18px 8px; flex-shrink:0;
+}
+.qscore {
+  background:var(--s2); border:1px solid var(--border);
+  border-radius:50px; padding:5px 13px;
+  font-size:13px; font-weight:700;
+}
+.qscore span { color:var(--blue); }
+.qtimer {
+  font-family:'Tajawal',sans-serif; font-size:24px; font-weight:900;
+  color:var(--blue); background:var(--s2);
+  border:1.5px solid rgba(0,170,255,0.3);
+  border-radius:11px; padding:5px 13px; min-width:76px; text-align:center;
+}
+.qtimer.warn  { color:var(--yellow); border-color:rgba(255,193,7,0.4); }
+.qtimer.danger{ color:var(--red); border-color:rgba(255,23,68,0.4); animation:blink 0.5s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+.qprog-wrap { padding:4px 18px 0; flex-shrink:0; }
+.qprog-track { height:4px; background:var(--s2); border-radius:5px; overflow:hidden; }
+.qprog-fill  { height:100%; border-radius:5px; background:linear-gradient(90deg,var(--purple),var(--blue)); transition:width 0.4s; }
+
+.qarea {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:16px 18px;
+}
+.qinfo { font-size:11px; color:var(--dim); margin-bottom:12px; text-align:center; }
+
+/* Question card */
+.qcard {
+  width:100%; background:var(--s1);
+  border:1.5px solid var(--border); border-radius:20px;
+  padding:26px 20px; text-align:center; margin-bottom:22px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.5);
+}
+/* CRITICAL FIX: force LTR for math expression */
+.qexpr {
+  font-family:'Tajawal',sans-serif; font-size:40px; font-weight:900;
+  direction:ltr; display:inline-block; line-height:1.3;
+  unicode-bidi:bidi-override;
+}
+.qop  { color:#9b59b6; margin:0 4px; }
+.qeq  { color:var(--dim); margin:0 4px; }
+.qmrk { color:var(--blue); }
+
+/* Advanced question hint */
+.qhint {
+  font-size:12px; color:var(--dim); margin-top:10px;
+  font-style:italic; direction:rtl;
+}
+
+.opts {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:10px; width:100%;
+}
+.opt {
+  background:var(--s1); border:1.5px solid var(--border);
+  border-radius:14px; padding:16px 8px;
+  font-family:'Tajawal',sans-serif; font-size:24px; font-weight:900;
+  color:var(--text); cursor:pointer; transition:transform 0.12s;
+  direction:ltr;
+}
+.opt:active { transform:scale(0.94); }
+.opt.correct{ background:rgba(0,230,118,0.12); border-color:var(--green); color:var(--green); }
+.opt.wrong  { background:rgba(255,23,68,0.12); border-color:var(--red); color:var(--red); }
+.opt.off    { pointer-events:none; }
+
+/* ══════════════════════════════
+   RESULT
+══════════════════════════════ */
+#pg-result {
+  align-items:center; justify-content:center;
+  padding:28px 22px; text-align:center; position:relative; overflow:hidden;
+}
+.rbg { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.rstar { position:absolute; font-size:16px; animation:rfall 3s ease-in infinite; opacity:0; }
+@keyframes rfall { 0%{transform:translateY(-30px) rotate(0);opacity:1} 100%{transform:translateY(110vh) rotate(360deg);opacity:0} }
+.rico { font-size:68px; animation:rpop 0.4s; margin-bottom:12px; position:relative; z-index:1; }
+@keyframes rpop { 0%{transform:scale(0)} 70%{transform:scale(1.2)} 100%{transform:scale(1)} }
+.rttl { font-family:'Tajawal',sans-serif; font-size:28px; font-weight:900; margin-bottom:5px; position:relative; z-index:1; }
+.rsub { color:var(--dim); font-size:12px; margin-bottom:24px; position:relative; z-index:1; }
+.rgrid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  width:100%; max-width:310px; margin-bottom:24px; position:relative; z-index:1;
+}
+.rbox { background:var(--s1); border:1px solid var(--border); border-radius:14px; padding:15px 12px; }
+.rnum { font-family:'Tajawal',sans-serif; font-size:26px; font-weight:900; }
+.rlbl { font-size:10px; color:var(--dim); margin-top:3px; }
+.rbtns { display:flex; flex-direction:column; gap:9px; width:100%; max-width:310px; position:relative; z-index:1; }
+.rbtn-p {
+  padding:15px; border-radius:13px;
+  background:linear-gradient(135deg,var(--blue),#0066aa);
+  color:#fff; font-family:'Tajawal',sans-serif;
+  font-size:15px; font-weight:900; border:none; cursor:pointer;
+  box-shadow:0 4px 16px rgba(0,170,255,0.3); transition:transform 0.15s;
+}
+.rbtn-p:active { transform:scale(0.97); }
+.rbtn-s {
+  padding:15px; border-radius:13px;
+  background:var(--s2); border:1px solid var(--border);
+  color:var(--text); font-family:'Cairo',sans-serif;
+  font-size:13px; font-weight:600; cursor:pointer; transition:transform 0.15s;
+}
+.rbtn-s:active { transform:scale(0.97); }
+
+/* ══════════════════════════════
+   HISTORY
+══════════════════════════════ */
+#pg-hist { padding:0 18px 20px; }
+.hlist { display:flex; flex-direction:column; gap:9px; flex:1; overflow-y:auto; margin-bottom:12px; }
+.hitem {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:13px; padding:12px 15px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.hibadge { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.hileft  { display:flex; align-items:center; gap:10px; }
+.himode  { font-size:10px; color:var(--dim); }
+.hidet   { font-size:12px; font-weight:600; }
+.hiscore { font-family:'Tajawal',sans-serif; font-size:20px; font-weight:900; }
+.hempty  { color:var(--dim); text-align:center; padding:40px 0; font-size:13px; }
+.btn-clr {
+  width:100%; padding:13px; border-radius:12px;
+  background:var(--s2); border:1px solid var(--border);
+  color:var(--text); font-family:'Cairo',sans-serif;
+  font-size:13px; cursor:pointer; flex-shrink:0;
+}
+.btn-clr:active { background:var(--s1); }
+
+/* Per-question timer ring */
+.qtimer-ring-wrap {
+  width:100%; display:flex; justify-content:center;
+  margin-bottom:10px;
+}
+.qtimer-ring {
+  position:relative; width:56px; height:56px; flex-shrink:0;
+}
+.qtimer-ring svg { transform:rotate(-90deg); }
+.qtimer-ring-bg { fill:none; stroke:var(--s2); stroke-width:5; }
+.qtimer-ring-fg { fill:none; stroke:var(--purple); stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset 0.9s linear, stroke 0.3s; }
+.qtimer-ring-num {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family:'Tajawal',sans-serif; font-size:16px; font-weight:900; color:var(--text);
+}
+
+/* FLASH */
+#flash {
+  position:fixed; inset:0; pointer-events:none; z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity 0.1s;
+}
+#flash.show { opacity:1; }
+#ficon { font-size:72px; transform:scale(0); transition:transform 0.12s; }
+#flash.show #ficon { transform:scale(1); }
+</style>
+</head>
+<body>
+
+<div id="flash"><div id="ficon"></div></div>
+
+<!-- ══════════ HOME ══════════ -->
+<div class="page show" id="pg-home">
+  <div class="home-glow"></div>
+  <div class="app-emblem">🧮</div>
+  <div class="app-title">الرياضيات السريعة</div>
+  <div class="app-sub">اختبر سرعة عقلك وقوة تفكيرك</div>
+
+  <div class="home-cards">
+    <div class="hcard hcard-blue" onclick="gp('pg-setup-cd')">
+      <div class="hcard-icon">⏱️</div>
+      <div class="hcard-name" style="color:var(--blue)">تحدي الوقت</div>
+      <div class="hcard-desc">أجب على أكبر عدد من العمليات قبل انتهاء الوقت</div>
+    </div>
+    <div class="hcard hcard-orange" onclick="gp('pg-setup-ct')">
+      <div class="hcard-icon">🎯</div>
+      <div class="hcard-name" style="color:var(--orange)">تحدي الدقة</div>
+      <div class="hcard-desc">اختر عدد العمليات وأجب بأعلى دقة ممكنة</div>
+    </div>
+    <div class="hcard hcard-purple" onclick="gp('pg-setup-adv')">
+      <div class="hcard-icon">🧠</div>
+      <div class="hcard-name" style="color:#c39bd3">الرياضيات المعقدة</div>
+      <div class="hcard-desc">مسائل تحتاج تفكيراً عميقاً · مربعات كاملة · سلاسل · منطق رقمي</div>
+    </div>
+    <div class="hcard hcard-hist" onclick="gp('pg-hist')">
+      <div class="hcard-icon">📊</div>
+      <div class="hcard-name" style="color:#aaa">سجل النشاط</div>
+      <div class="hcard-desc">تتبع تقدمك وأفضل نتائجك</div>
+    </div>
+  </div>
+
+  <div class="home-stats">
+    <div><div class="hs-num" id="hs-games">0</div><div class="hs-lbl">جلسة</div></div>
+    <div><div class="hs-num" id="hs-best">−</div><div class="hs-lbl">أفضل</div></div>
+    <div><div class="hs-num" id="hs-total">0</div><div class="hs-lbl">صحيحة</div></div>
+  </div>
+</div>
+
+<!-- ══════════ SETUP: تحدي الوقت ══════════ -->
+<div class="page pg-setup" id="pg-setup-cd">
+  <div class="pg-hdr">
+    <button class="btn-back" onclick="gp('pg-home')">←</button>
+    <div class="pg-ttl">⏱️ تحدي الوقت</div>
+  </div>
+  <div class="setup-scroll">
+    <div>
+      <span class="slbl">⏰ مدة الاختبار</span>
+      <div class="chips">
+        <div class="chip cb" data-g="cd-time" data-v="60"  onclick="pick(this)">60 ثانية</div>
+        <div class="chip"    data-g="cd-time" data-v="180" onclick="pick(this)">3 دقائق</div>
+        <div class="chip"    data-g="cd-time" data-v="300" onclick="pick(this)">5 دقائق</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">➕ العمليات (اختر واحدة أو أكثر)</span>
+      <div class="chips">
+        <div class="chip co" data-g="cd-ops" data-v="add" onclick="tog(this)">جمع ➕</div>
+        <div class="chip"    data-g="cd-ops" data-v="sub" onclick="tog(this)">طرح ➖</div>
+        <div class="chip"    data-g="cd-ops" data-v="mul" onclick="tog(this)">ضرب ✖</div>
+        <div class="chip"    data-g="cd-ops" data-v="div" onclick="tog(this)">قسمة ➗</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔢 نطاق الطرف الأول</span>
+      <div class="rrow">
+        <select class="rsel" id="cd-r1a">
+          <option value="1">1</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option>
+        </select>
+        <span class="rlbl">إلى</span>
+        <select class="rsel" id="cd-r1b">
+          <option value="10" selected>10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option><option value="100">100</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔢 نطاق الطرف الثاني</span>
+      <div class="rrow">
+        <select class="rsel" id="cd-r2a">
+          <option value="1">1</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option>
+        </select>
+        <span class="rlbl">إلى</span>
+        <select class="rsel" id="cd-r2b">
+          <option value="10" selected>10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option><option value="100">100</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔁 عدد الجلسات</span>
+      <div class="chips">
+        <div class="chip cb" data-g="cd-sess" data-v="1"  onclick="pickSess(this,'cd')">جلسة واحدة</div>
+        <div class="chip"    data-g="cd-sess" data-v="3"  onclick="pickSess(this,'cd')">3 جلسات</div>
+        <div class="chip"    data-g="cd-sess" data-v="5"  onclick="pickSess(this,'cd')">5 جلسات</div>
+        <div class="chip"    data-g="cd-sess" data-v="10" onclick="pickSess(this,'cd')">10 جلسات</div>
+      </div>
+      <span class="slbl" style="margin-top:12px">أو حدد بنفسك (1 – 20)</span>
+      <div class="cntrow">
+        <button class="cnbtn" onclick="adjSess('cd',-1)">−</button>
+        <div class="cnval" id="cd-sess-disp">1</div>
+        <button class="cnbtn" onclick="adjSess('cd',1)">+</button>
+      </div>
+    </div>
+  </div>
+  <button class="btn-go go-orange" onclick="startCD()">🚀 ابدأ تحدي الوقت</button>
+</div>
+
+<!-- ══════════ SETUP: تحدي الدقة ══════════ -->
+<div class="page pg-setup" id="pg-setup-ct">
+  <div class="pg-hdr">
+    <button class="btn-back" onclick="gp('pg-home')">←</button>
+    <div class="pg-ttl">🎯 تحدي الدقة</div>
+  </div>
+  <div class="setup-scroll">
+    <div>
+      <span class="slbl">🔢 عدد العمليات</span>
+      <div class="chips">
+        <div class="chip cb" data-g="ct-cnt" data-v="20"  onclick="pickCnt(this)">20</div>
+        <div class="chip"    data-g="ct-cnt" data-v="50"  onclick="pickCnt(this)">50</div>
+        <div class="chip"    data-g="ct-cnt" data-v="100" onclick="pickCnt(this)">100</div>
+      </div>
+      <span class="slbl" style="margin-top:12px">أو اكتب العدد بنفسك</span>
+      <input class="num-input" id="cnt-input" type="number" inputmode="numeric"
+        min="1" placeholder="مثال: 200"
+        oninput="syncCnt(this.value)"
+        onfocus="document.querySelectorAll('[data-g=\\'ct-cnt\\']').forEach(function(c){c.classList.remove('cb');})"
+      >
+    </div>
+    <div>
+      <span class="slbl">➕ العمليات (اختر واحدة أو أكثر)</span>
+      <div class="chips">
+        <div class="chip co" data-g="ct-ops" data-v="add" onclick="tog(this)">جمع ➕</div>
+        <div class="chip"    data-g="ct-ops" data-v="sub" onclick="tog(this)">طرح ➖</div>
+        <div class="chip"    data-g="ct-ops" data-v="mul" onclick="tog(this)">ضرب ✖</div>
+        <div class="chip"    data-g="ct-ops" data-v="div" onclick="tog(this)">قسمة ➗</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔢 نطاق الطرف الأول</span>
+      <div class="rrow">
+        <select class="rsel" id="ct-r1a">
+          <option value="1">1</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option>
+        </select>
+        <span class="rlbl">إلى</span>
+        <select class="rsel" id="ct-r1b">
+          <option value="10" selected>10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option><option value="100">100</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔢 نطاق الطرف الثاني</span>
+      <div class="rrow">
+        <select class="rsel" id="ct-r2a">
+          <option value="1">1</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option>
+        </select>
+        <span class="rlbl">إلى</span>
+        <select class="rsel" id="ct-r2b">
+          <option value="10" selected>10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option><option value="60">60</option><option value="70">70</option><option value="80">80</option><option value="90">90</option><option value="100">100</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔁 عدد الجلسات</span>
+      <div class="chips">
+        <div class="chip cb" data-g="ct-sess" data-v="1"  onclick="pickSess(this,'ct')">جلسة واحدة</div>
+        <div class="chip"    data-g="ct-sess" data-v="3"  onclick="pickSess(this,'ct')">3 جلسات</div>
+        <div class="chip"    data-g="ct-sess" data-v="5"  onclick="pickSess(this,'ct')">5 جلسات</div>
+        <div class="chip"    data-g="ct-sess" data-v="10" onclick="pickSess(this,'ct')">10 جلسات</div>
+      </div>
+      <span class="slbl" style="margin-top:12px">أو حدد بنفسك (1 – 20)</span>
+      <div class="cntrow">
+        <button class="cnbtn" onclick="adjSess('ct',-1)">−</button>
+        <div class="cnval" id="ct-sess-disp">1</div>
+        <button class="cnbtn" onclick="adjSess('ct',1)">+</button>
+      </div>
+    </div>
+  </div>
+  <button class="btn-go go-blue" onclick="startCT()">🚀 ابدأ الاختبار</button>
+</div>
+
+<!-- ══════════ SETUP: الرياضيات المعقدة ══════════ -->
+<div class="page pg-setup" id="pg-setup-adv">
+  <div class="pg-hdr">
+    <button class="btn-back" onclick="gp('pg-home')">←</button>
+    <div class="pg-ttl">🧠 الرياضيات المعقدة</div>
+  </div>
+  <div class="setup-scroll">
+    <div>
+      <span class="slbl">🎚 مستوى الصعوبة</span>
+      <div class="chips diff-chips">
+        <div class="chip cp" data-g="adv-diff" data-v="1" onclick="pick(this)">⭐ متوسط</div>
+        <div class="chip"    data-g="adv-diff" data-v="2" onclick="pick(this)">⭐⭐ صعب</div>
+        <div class="chip"    data-g="adv-diff" data-v="3" onclick="pick(this)">⭐⭐⭐ عبقري</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">⏱️ وقت كل مسألة (ثانية)</span>
+      <div class="chips">
+        <div class="chip cp" data-g="adv-qtime" data-v="0"  onclick="pick(this)">بدون مؤقت</div>
+        <div class="chip"    data-g="adv-qtime" data-v="15" onclick="pick(this)">15 ثانية</div>
+        <div class="chip"    data-g="adv-qtime" data-v="30" onclick="pick(this)">30 ثانية</div>
+        <div class="chip"    data-g="adv-qtime" data-v="45" onclick="pick(this)">45 ثانية</div>
+        <div class="chip"    data-g="adv-qtime" data-v="60" onclick="pick(this)">60 ثانية</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🧩 نوع المسائل (اختر واحداً أو أكثر)</span>
+      <div class="chips">
+        <div class="chip cp" data-g="adv-type" data-v="missing" onclick="tog(this)">🔍 العدد المفقود</div>
+        <div class="chip"    data-g="adv-type" data-v="chain"   onclick="tog(this)">🔗 سلسلة عمليات</div>
+        <div class="chip"    data-g="adv-type" data-v="compare" onclick="tog(this)">⚖️ مقارنة تعبيرات</div>
+        <div class="chip"    data-g="adv-type" data-v="pattern" onclick="tog(this)">📐 نمط الأرقام</div>
+        <div class="chip"    data-g="adv-type" data-v="square"  onclick="tog(this)">🔲 مربعات وجذور</div>
+        <div class="chip"    data-g="adv-type" data-v="percent" onclick="tog(this)">💯 نسب مئوية</div>
+      </div>
+    </div>
+    <div>
+      <span class="slbl">🔢 عدد المسائل</span>
+      <div class="chips">
+        <div class="chip cp" data-g="adv-cnt" data-v="10" onclick="pickCntAdv(this)">10</div>
+        <div class="chip"    data-g="adv-cnt" data-v="20" onclick="pickCntAdv(this)">20</div>
+        <div class="chip"    data-g="adv-cnt" data-v="30" onclick="pickCntAdv(this)">30</div>
+      </div>
+      <span class="slbl" style="margin-top:12px">أو اكتب العدد بنفسك</span>
+      <input class="num-input" id="adv-cnt-input" type="number" inputmode="numeric"
+        min="1" placeholder="مثال: 50"
+        oninput="syncAdvCnt(this.value)"
+        onfocus="document.querySelectorAll('[data-g=\\'adv-cnt\\']').forEach(function(c){c.classList.remove('cp');})"
+      >
+    </div>
+    <div>
+      <span class="slbl">🔁 عدد الجلسات</span>
+      <div class="chips">
+        <div class="chip cp" data-g="adv-sess" data-v="1"  onclick="pickSess(this,'adv')">جلسة واحدة</div>
+        <div class="chip"    data-g="adv-sess" data-v="3"  onclick="pickSess(this,'adv')">3 جلسات</div>
+        <div class="chip"    data-g="adv-sess" data-v="5"  onclick="pickSess(this,'adv')">5 جلسات</div>
+        <div class="chip"    data-g="adv-sess" data-v="10" onclick="pickSess(this,'adv')">10 جلسات</div>
+      </div>
+      <span class="slbl" style="margin-top:12px">أو حدد بنفسك (1 – 20)</span>
+      <div class="cntrow">
+        <button class="cnbtn" onclick="adjSess('adv',-1)">−</button>
+        <div class="cnval" id="adv-sess-disp">1</div>
+        <button class="cnbtn" onclick="adjSess('adv',1)">+</button>
+      </div>
+    </div>
+  </div>
+  <button class="btn-go go-purple" onclick="startAdv()">🧠 ابدأ التحدي العقلي</button>
+</div>
+
+<!-- ══════════ QUIZ ══════════ -->
+<div class="page" id="pg-quiz">
+  <div class="qtop">
+    <button class="btn-back" onclick="quitQ()">✕</button>
+    <div class="qscore">⭐ <span id="q-sc">0</span></div>
+    <div id="q-tmr" class="qtimer" style="display:none">1:00</div>
+    <div id="q-pill" class="qscore" style="display:none">❓ <span id="q-cur">1</span>/<span id="q-tot">20</span></div>
+  </div>
+  <div class="qprog-wrap"><div class="qprog-track"><div class="qprog-fill" id="q-prog" style="width:0%"></div></div></div>
+  <div class="qarea">
+    <div class="qinfo" id="q-info"></div>
+    <!-- per-question countdown ring (shown in adv mode) -->
+    <div class="qtimer-ring-wrap" id="q-ring-wrap" style="display:none">
+      <div class="qtimer-ring">
+        <svg width="56" height="56" viewBox="0 0 56 56">
+          <circle class="qtimer-ring-bg" cx="28" cy="28" r="24"/>
+          <circle class="qtimer-ring-fg" id="q-ring-fg" cx="28" cy="28" r="24"
+            stroke-dasharray="150.8" stroke-dashoffset="0"/>
+        </svg>
+        <div class="qtimer-ring-num" id="q-ring-num">30</div>
+      </div>
+    </div>
+    <div class="qcard">
+      <div><span class="qexpr" id="q-expr">5 + 3 = ?</span></div>
+      <div class="qhint" id="q-hint"></div>
+    </div>
+    <div class="opts" id="q-opts"></div>
+  </div>
+</div>
+
+<!-- ══════════ RESULT ══════════ -->
+<div class="page" id="pg-result">
+  <div class="rbg" id="r-bg"></div>
+  <div class="rico" id="r-ico">🏆</div>
+  <div class="rttl" id="r-ttl">أحسنت!</div>
+  <div class="rsub" id="r-sub"></div>
+  <div class="rgrid">
+    <div class="rbox"><div class="rnum" id="r-ok"  style="color:var(--green)">0</div><div class="rlbl">صحيحة</div></div>
+    <div class="rbox"><div class="rnum" id="r-no"  style="color:var(--red)">0</div><div class="rlbl">خاطئة</div></div>
+    <div class="rbox"><div class="rnum" id="r-acc" style="color:var(--blue)">0%</div><div class="rlbl">الدقة</div></div>
+    <div class="rbox"><div class="rnum" id="r-ext" style="color:var(--yellow)">0</div><div class="rlbl" id="r-extlbl">ثانية</div></div>
+  </div>
+  <div class="rbtns">
+    <button class="rbtn-p" onclick="replay()">🔄 العب مجدداً</button>
+    <button class="rbtn-s" onclick="gp('pg-home')">🏠 الرئيسية</button>
+  </div>
+</div>
+
+<!-- ══════════ HISTORY ══════════ -->
+<div class="page" id="pg-hist">
+  <div class="pg-hdr">
+    <button class="btn-back" onclick="gp('pg-home')">←</button>
+    <div class="pg-ttl">📊 سجل النشاط</div>
+  </div>
+  <div class="hlist" id="h-list"></div>
+  <button class="btn-clr" onclick="clrHist()">🗑️ مسح كل السجل</button>
+</div>
+
+<script>
+// ══ STATE ══
+var HD = [];
+try { HD = JSON.parse(localStorage.getItem('riyadia_v1') || '[]'); } catch(e){ HD = []; }
+var cfg={}, qs=[], qi=0, sc=0, wr=0, tv=0, ti=null, t0=0, isCD=false, isAdv=false;
+var customCnt=20, advCnt=10;
+// session tracking
+var totalSessions=1, currentSession=1, sessionSc=[], sessionWr=[];
+
+// ══ NAVIGATION ══
+function gp(id){
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('show'); });
+  document.getElementById(id).classList.add('show');
+  if(id==='pg-home') refreshHome();
+  if(id==='pg-hist') renderHist();
+}
+
+// ══ CHIPS ══
+function pick(el){
+  var g=el.getAttribute('data-g');
+  document.querySelectorAll('[data-g="'+g+'"]').forEach(function(c){ c.classList.remove('cb','co','cp'); });
+  // detect which color group
+  var col = el.closest('#pg-setup-adv') ? 'cp' : (el.closest('#pg-setup-cd') ? 'cb' : 'cb');
+  el.classList.add(col);
+}
+function tog(el){
+  var col = el.closest('#pg-setup-adv') ? 'cp' : 'co';
+  if(el.classList.contains(col)) el.classList.remove(col);
+  else el.classList.add(col);
+}
+function pickCnt(el){
+  document.querySelectorAll('[data-g="ct-cnt"]').forEach(function(c){ c.classList.remove('cb'); });
+  el.classList.add('cb');
+  customCnt=parseInt(el.getAttribute('data-v'));
+  document.getElementById('cnt-input').value=customCnt;
+}
+function syncCnt(val){
+  var n=parseInt(val);
+  if(!isNaN(n)&&n>=1) customCnt=n;
+}
+function pickCntAdv(el){
+  document.querySelectorAll('[data-g="adv-cnt"]').forEach(function(c){ c.classList.remove('cp'); });
+  el.classList.add('cp');
+  advCnt=parseInt(el.getAttribute('data-v'));
+  document.getElementById('adv-cnt-input').value=advCnt;
+}
+function syncAdvCnt(val){
+  var n=parseInt(val);
+  if(!isNaN(n)&&n>=1) advCnt=n;
+}
+
+// session counters per mode
+var sessCounts={cd:1, ct:1, adv:1};
+function pickSess(el, mode){
+  var g=el.getAttribute('data-g');
+  document.querySelectorAll('[data-g="'+g+'"]').forEach(function(c){ c.classList.remove('cb','cp'); });
+  el.classList.add(mode==='adv'?'cp':'cb');
+  sessCounts[mode]=parseInt(el.getAttribute('data-v'));
+  document.getElementById(mode+'-sess-disp').textContent=sessCounts[mode];
+}
+function adjSess(mode, d){
+  sessCounts[mode]=Math.min(20,Math.max(1,sessCounts[mode]+d));
+  document.getElementById(mode+'-sess-disp').textContent=sessCounts[mode];
+  document.querySelectorAll('[data-g="'+mode+'-sess"]').forEach(function(c){ c.classList.remove('cb','cp'); });
+}
+function getOps(g){
+  var ops=[];
+  document.querySelectorAll('[data-g="'+g+'"].co').forEach(function(c){ ops.push(c.getAttribute('data-v')); });
+  return ops.length?ops:['add'];
+}
+function getAdvTypes(){
+  var types=[];
+  document.querySelectorAll('[data-g="adv-type"].cp').forEach(function(c){ types.push(c.getAttribute('data-v')); });
+  return types.length?types:['missing','chain'];
+}
+
+// ══ HELPERS ══
+function ri(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function gv(id){ return parseInt(document.getElementById(id).value); }
+
+// ══ NORMAL QUESTION ══
+function makeQ(ops,r1a,r1b,r2a,r2b){
+  var op=ops[Math.floor(Math.random()*ops.length)];
+  var a=ri(r1a,r1b), b=ri(r2a,r2b), ans, sym;
+  if(op==='add'){ sym='+'; ans=a+b; }
+  else if(op==='sub'){ if(a<b){var t=a;a=b;b=t;} sym='−'; ans=a-b; }
+  else if(op==='mul'){ sym='×'; ans=a*b; }
+  else { b=b===0?1:b; ans=ri(1,12); a=b*ans; sym='÷'; }
+  var choices=[ans], spread=Math.max(5,Math.ceil(Math.abs(ans)*0.3)+3), tries=0;
+  while(choices.length<4&&tries<400){
+    tries++;
+    var f=ans+ri(-spread,spread);
+    if(f===ans||choices.indexOf(f)!==-1)continue;
+    if(op==='div'&&f<=0)continue;
+    choices.push(f);
+  }
+  shuffle(choices);
+  return {expr:a+' '+sym+' '+b+' = ?', ans:ans, choices:choices, hint:''};
+}
+
+// ══ ADVANCED QUESTIONS ══
+function makeAdvQ(types, diff){
+  var type=types[Math.floor(Math.random()*types.length)];
+  var d=diff||1;
+  var q;
+  switch(type){
+    case 'missing':  q=makeMissing(d); break;
+    case 'chain':    q=makeChain(d); break;
+    case 'compare':  q=makeCompare(d); break;
+    case 'pattern':  q=makePattern(d); break;
+    case 'square':   q=makeSquare(d); break;
+    case 'percent':  q=makePercent(d); break;
+    default:         q=makeMissing(d);
+  }
+  return q;
+}
+
+function makeMissing(d){
+  // ? + b = c  or  a × ? = c
+  var ops=['+','−','×'];
+  if(d>=2) ops.push('÷');
+  var op=ops[Math.floor(Math.random()*ops.length)];
+  var a,b,ans,expr,hint;
+  if(op==='+'){
+    a=ri(d*5,d*20); b=ri(d*3,d*15); var c=a+b;
+    // hide either a or b
+    if(Math.random()<0.5){ ans=a; expr='? '+op+' '+b+' = '+c; hint='ما هو العدد المفقود؟'; }
+    else { ans=b; expr=a+' '+op+' ? = '+c; hint='ما هو العدد المفقود؟'; }
+  } else if(op==='−'){
+    a=ri(d*10,d*25); b=ri(1,a); var c=a-b;
+    if(Math.random()<0.5){ ans=a; expr='? − '+b+' = '+c; hint='ما هو العدد المفقود؟'; }
+    else { ans=b; expr=a+' − ? = '+c; hint='ما هو العدد المفقود؟'; }
+  } else if(op==='×'){
+    a=ri(2,d*6); b=ri(2,d*6); var c=a*b;
+    if(Math.random()<0.5){ ans=a; expr='? × '+b+' = '+c; hint='ما هو العدد المفقود؟'; }
+    else { ans=b; expr=a+' × ? = '+c; hint='ما هو العدد المفقود؟'; }
+  } else {
+    ans=ri(2,d*5); b=ri(2,d*5); a=ans*b;
+    expr=a+' ÷ ? = '+ans; hint='ما هو المقسوم عليه؟';
+  }
+  return buildQ(expr,ans,hint,8);
+}
+
+function makeChain(d){
+  // a op1 b op2 c = ?
+  var nums=[ri(2,d*8),ri(2,d*6),ri(2,d*5)];
+  var ops=['+','−','×'];
+  var op1=ops[Math.floor(Math.random()*ops.length)];
+  var op2=ops[Math.floor(Math.random()*ops.length)];
+  var val;
+  // compute left to right (no precedence for simplicity at lower diff, with precedence at higher)
+  if(d>=2){
+    // standard math precedence
+    var mid=op1==='×'?nums[0]*nums[1]:op1==='−'?nums[0]-nums[1]:nums[0]+nums[1];
+    val=op2==='×'?mid*nums[2]:op2==='−'?mid-nums[2]:mid+nums[2];
+  } else {
+    val=op1==='+'?nums[0]+nums[1]:op1==='−'?nums[0]-nums[1]:nums[0]*nums[1];
+    val=op2==='+'?val+nums[2]:op2==='−'?val-nums[2]:val*nums[2];
+  }
+  var expr=nums[0]+' '+op1+' '+nums[1]+' '+op2+' '+nums[2]+' = ?';
+  return buildQ(expr,val,'احسب النتيجة',Math.max(10,Math.abs(val)*0.3+5));
+}
+
+function makeCompare(d){
+  // which expression is larger?
+  var a1=ri(2,d*8), b1=ri(2,d*6);
+  var a2=ri(2,d*8), b2=ri(2,d*6);
+  var ops=['+','−','×'];
+  var op1=ops[Math.floor(Math.random()*ops.length)];
+  var op2=ops[Math.floor(Math.random()*ops.length)];
+  var v1=op1==='+'?a1+b1:op1==='−'?Math.abs(a1-b1):a1*b1;
+  var v2=op2==='+'?a2+b2:op2==='−'?Math.abs(a2-b2):a2*b2;
+  // answer is the larger value
+  var ans=Math.max(v1,v2);
+  var expr=a1+' '+op1+' '+b1+' | '+a2+' '+op2+' '+b2;
+  var choices=[v1,v2];
+  // add 2 more distractors
+  while(choices.length<4){
+    var f=ans+ri(-10,10);
+    if(choices.indexOf(f)===-1&&f!==v1&&f!==v2) choices.push(f);
+  }
+  shuffle(choices);
+  return {expr:expr, ans:ans, choices:choices, hint:'أي تعبير أعطى النتيجة الأكبر؟'};
+}
+
+function makePattern(d){
+  // find next number in sequence
+  var start=ri(1,d*5);
+  var step=ri(2,d*4)*(Math.random()<0.5?1:-1);
+  var seq=[];
+  for(var i=0;i<4;i++) seq.push(start+i*step);
+  var ans=start+4*step;
+  var expr=seq.join(' , ')+' , ?';
+  return buildQ(expr,ans,'ما هو العدد التالي في المتتالية؟',Math.abs(step)*2+3);
+}
+
+function makeSquare(d){
+  var type=Math.random()<0.5?'sq':'sqrt';
+  if(type==='sq'){
+    var n=ri(2,d*4+6);
+    var ans=n*n;
+    var expr=n+' ² = ?';
+    return buildQ(expr,ans,'احسب مربع العدد',Math.max(8,ans*0.2));
+  } else {
+    var base=ri(2,d*3+4);
+    var n2=base*base;
+    var ans2=base;
+    var expr2='√'+n2+' = ?';
+    return buildQ(expr2,ans2,'احسب الجذر التربيعي',Math.max(3,base*0.5+2));
+  }
+}
+
+function makePercent(d){
+  var pcts=[10,20,25,50,75];
+  if(d>=2) pcts=[5,10,15,20,25,30,40,50,60,75,80];
+  var pct=pcts[Math.floor(Math.random()*pcts.length)];
+  var base=ri(d*10,d*50)*2; // even number for clean answers
+  var ans=Math.round(base*pct/100);
+  var expr=pct+'% من '+base+' = ?';
+  return buildQ(expr,ans,'احسب النسبة المئوية',Math.max(4,ans*0.3+3));
+}
+
+function buildQ(expr,ans,hint,spread){
+  var choices=[ans], tries=0;
+  spread=Math.max(3,Math.ceil(spread));
+  while(choices.length<4&&tries<400){
+    tries++;
+    var f=ans+ri(-spread,spread);
+    if(f===ans||choices.indexOf(f)!==-1)continue;
+    choices.push(f);
+  }
+  shuffle(choices);
+  return {expr:expr, ans:ans, choices:choices, hint:hint||''};
+}
+
+function shuffle(arr){
+  for(var i=arr.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var t=arr[i];arr[i]=arr[j];arr[j]=t;
+  }
+}
+
+// ══ START COUNTDOWN ══
+function startCD(){
+  var tc=document.querySelector('[data-g="cd-time"].cb');
+  var dur=tc?parseInt(tc.getAttribute('data-v')):60;
+  var r1a=Math.min(gv('cd-r1a'),gv('cd-r1b')), r1b=Math.max(gv('cd-r1a'),gv('cd-r1b'));
+  var r2a=Math.min(gv('cd-r2a'),gv('cd-r2b')), r2b=Math.max(gv('cd-r2a'),gv('cd-r2b'));
+  var sc2=document.querySelector('[data-g="cd-sess"].cb');
+  totalSessions=sc2?parseInt(sc2.getAttribute('data-v')):sessCounts.cd;
+  cfg={mode:'cd',dur:dur,ops:getOps('cd-ops'),r1a:r1a,r1b:r1b,r2a:r2a,r2b:r2b};
+  currentSession=1; sessionSc=[]; sessionWr=[];
+  _runCD();
+}
+function _runCD(){
+  isCD=true; isAdv=false; sc=0; wr=0; qi=0; tv=cfg.dur; t0=Date.now();
+  qs=[];
+  for(var i=0;i<400;i++) qs.push(makeQ(cfg.ops,cfg.r1a,cfg.r1b,cfg.r2a,cfg.r2b));
+  gp('pg-quiz'); setupUI(); renderQ(); startTmr();
+}
+
+// ══ START COUNT ══
+function startCT(){
+  var r1a=Math.min(gv('ct-r1a'),gv('ct-r1b')), r1b=Math.max(gv('ct-r1a'),gv('ct-r1b'));
+  var r2a=Math.min(gv('ct-r2a'),gv('ct-r2b')), r2b=Math.max(gv('ct-r2a'),gv('ct-r2b'));
+  var sc2=document.querySelector('[data-g="ct-sess"].cb');
+  totalSessions=sc2?parseInt(sc2.getAttribute('data-v')):sessCounts.ct;
+  // read from input field (unlimited)
+  var inputVal=parseInt(document.getElementById('cnt-input').value);
+  if(!isNaN(inputVal)&&inputVal>=1) customCnt=inputVal;
+  cfg={mode:'ct',total:customCnt,ops:getOps('ct-ops'),r1a:r1a,r1b:r1b,r2a:r2a,r2b:r2b};
+  currentSession=1; sessionSc=[]; sessionWr=[];
+  _runCT();
+}
+function _runCT(){
+  isCD=false; isAdv=false; sc=0; wr=0; qi=0; t0=Date.now();
+  qs=[];
+  for(var i=0;i<cfg.total;i++) qs.push(makeQ(cfg.ops,cfg.r1a,cfg.r1b,cfg.r2a,cfg.r2b));
+  gp('pg-quiz'); setupUI(); renderQ();
+}
+
+// ══ START ADVANCED ══
+function startAdv(){
+  var dc=document.querySelector('[data-g="adv-diff"].cp');
+  var diff=dc?parseInt(dc.getAttribute('data-v')):1;
+  var qtc=document.querySelector('[data-g="adv-qtime"].cp');
+  var qtime=qtc?parseInt(qtc.getAttribute('data-v')):0;
+  var types=getAdvTypes();
+  // read from input field (unlimited)
+  var inputVal=parseInt(document.getElementById('adv-cnt-input').value);
+  if(!isNaN(inputVal)&&inputVal>=1) advCnt=inputVal;
+  var sc2=document.querySelector('[data-g="adv-sess"].cp');
+  totalSessions=sc2?parseInt(sc2.getAttribute('data-v')):sessCounts.adv;
+  cfg={mode:'adv',total:advCnt,diff:diff,types:types,qtime:qtime};
+  currentSession=1; sessionSc=[]; sessionWr=[];
+  _runAdv();
+}
+function _runAdv(){
+  isCD=false; isAdv=true; sc=0; wr=0; qi=0; t0=Date.now();
+  qs=[];
+  for(var i=0;i<cfg.total;i++) qs.push(makeAdvQ(cfg.types,cfg.diff));
+  gp('pg-quiz'); setupUI(); renderQ();
+}
+
+// ══ QUIZ UI ══
+var qti=null, qtv=0; // per-question timer
+function setupUI(){
+  document.getElementById('q-sc').textContent='0';
+  document.getElementById('q-prog').style.width='0%';
+  var te=document.getElementById('q-tmr'), pe=document.getElementById('q-pill');
+  var rw=document.getElementById('q-ring-wrap');
+  if(isCD){ te.style.display='block'; pe.style.display='none'; rw.style.display='none'; updTmr(); }
+  else {
+    te.style.display='none';
+    pe.style.display='flex';
+    document.getElementById('q-tot').textContent=qs.length;
+    document.getElementById('q-cur').textContent='1';
+    // show ring only if adv with qtime>0
+    rw.style.display=(isAdv&&cfg.qtime>0)?'flex':'none';
+  }
+}
+
+function renderQ(){
+  if(!isCD&&qi>=qs.length){ endQ(); return; }
+  var q=qs[qi%qs.length];
+  document.getElementById('q-expr').textContent=q.expr;
+  document.getElementById('q-hint').textContent=q.hint||'';
+  if(!isCD){
+    document.getElementById('q-cur').textContent=qi+1;
+    document.getElementById('q-prog').style.width=((qi/qs.length)*100)+'%';
+    var sessInfo=totalSessions>1?' · جلسة '+currentSession+'/'+totalSessions:'';
+    document.getElementById('q-info').textContent='السؤال '+(qi+1)+' من '+qs.length+sessInfo;
+  } else {
+    var sessInfo2=totalSessions>1?' · جلسة '+currentSession+'/'+totalSessions:'';
+    document.getElementById('q-info').textContent='✅ '+sc+'   ❌ '+wr+sessInfo2;
+  }
+  // start per-question timer if adv mode with qtime
+  if(isAdv&&cfg.qtime>0) startQTimer(cfg.qtime);
+  var og=document.getElementById('q-opts'); og.innerHTML='';
+  q.choices.forEach(function(c){
+    var b=document.createElement('button'); b.className='opt'; b.textContent=c;
+    b.setAttribute('data-v',c); b.setAttribute('data-a',q.ans);
+    b.onclick=function(){ answerQ(this,parseFloat(this.getAttribute('data-v')),parseFloat(this.getAttribute('data-a'))); };
+    og.appendChild(b);
+  });
+}
+
+// per-question timer
+function startQTimer(sec){
+  clearInterval(qti);
+  qtv=sec;
+  var circ=150.8; // 2*pi*24
+  updateRing(qtv,sec,circ);
+  qti=setInterval(function(){
+    qtv--;
+    updateRing(qtv,sec,circ);
+    if(qtv<=0){ clearInterval(qti); timeoutQ(); }
+  },1000);
+}
+function updateRing(val,max,circ){
+  var fg=document.getElementById('q-ring-fg');
+  var num=document.getElementById('q-ring-num');
+  var pct=val/max;
+  fg.style.strokeDashoffset=circ*(1-pct);
+  num.textContent=val;
+  fg.style.stroke=val<=5?'var(--red)':val<=10?'var(--yellow)':'var(--purple)';
+}
+function timeoutQ(){
+  // treat as wrong answer when time runs out
+  document.querySelectorAll('.opt').forEach(function(b){ b.classList.add('off'); });
+  var correct=parseFloat(document.querySelector('.opt').getAttribute('data-a'));
+  document.querySelectorAll('.opt').forEach(function(b){ if(parseFloat(b.getAttribute('data-v'))===correct) b.classList.add('correct'); });
+  wr++;
+  flash(false);
+  qi++;
+  setTimeout(function(){ if(!isCD&&qi>=qs.length) endQ(); else renderQ(); },500);
+}
+
+function answerQ(btn,chosen,correct){
+  clearInterval(qti); // stop per-question timer
+  document.querySelectorAll('.opt').forEach(function(b){ b.classList.add('off'); });
+  if(chosen===correct){
+    btn.classList.add('correct'); sc++;
+    document.getElementById('q-sc').textContent=sc;
+    flash(true);
+  } else {
+    btn.classList.add('wrong'); wr++;
+    document.querySelectorAll('.opt').forEach(function(b){ if(parseFloat(b.getAttribute('data-v'))===correct) b.classList.add('correct'); });
+    flash(false);
+  }
+  qi++;
+  setTimeout(function(){ if(!isCD&&qi>=qs.length) endQ(); else renderQ(); },500);
+}
+
+function flash(ok){
+  var el=document.getElementById('flash'), ic=document.getElementById('ficon');
+  el.style.background=ok?'rgba(0,230,118,0.07)':'rgba(255,23,68,0.07)';
+  el.className='show'; ic.textContent=ok?'✅':'❌';
+  setTimeout(function(){ el.className=''; el.style.background=''; },420);
+}
+
+function startTmr(){ clearInterval(ti); ti=setInterval(function(){ tv--; updTmr(); if(tv<=0){ clearInterval(ti); endQ(); } },1000); }
+function updTmr(){
+  var el=document.getElementById('q-tmr'), m=Math.floor(tv/60), s=tv%60;
+  el.textContent=m+':'+(s<10?'0'+s:s);
+  el.className='qtimer';
+  if(tv<=10) el.className='qtimer danger';
+  else if(tv<=20) el.className='qtimer warn';
+}
+function quitQ(){ clearInterval(ti); clearInterval(qti); gp('pg-home'); }
+
+// ══ END ══
+function endQ(){
+  clearInterval(ti); clearInterval(qti);
+  sessionSc.push(sc); sessionWr.push(wr);
+
+  // check if more sessions remain
+  if(currentSession < totalSessions){
+    currentSession++;
+    // brief inter-session screen
+    showInterSession();
+    return;
+  }
+
+  // all sessions done — compute totals
+  var totalSc=0, totalWr=0;
+  for(var i=0;i<sessionSc.length;i++){ totalSc+=sessionSc[i]; totalWr+=sessionWr[i]; }
+  var elapsed=Math.round((Date.now()-t0)/1000), total=totalSc+totalWr, acc=total>0?Math.round((totalSc/total)*100):0;
+  HD.unshift({mode:cfg.mode,score:totalSc,wrong:totalWr,acc:acc,elapsed:elapsed,sessions:totalSessions,date:new Date().toLocaleDateString('ar-SA')});
+  if(HD.length>60) HD.pop();
+  try{ localStorage.setItem('riyadia_v1',JSON.stringify(HD)); }catch(e){}
+  gp('pg-result');
+  document.getElementById('r-ok').textContent=totalSc;
+  document.getElementById('r-no').textContent=totalWr;
+  document.getElementById('r-acc').textContent=acc+'%';
+  if(isCD){ document.getElementById('r-ext').textContent=totalSc; document.getElementById('r-extlbl').textContent='عملية صحيحة'; }
+  else { document.getElementById('r-ext').textContent=elapsed+'ث'; document.getElementById('r-extlbl').textContent='الوقت'; }
+  var icon='🎯',title='حاول مجدداً!';
+  if(acc>=90){icon='🌟';title='عبقري!';}
+  else if(acc>=75){icon='🏆';title='ممتاز!';}
+  else if(acc>=60){icon='👍';title='جيد!';}
+  else if(acc>=40){icon='💪';title='تدرب أكثر!';}
+  document.getElementById('r-ico').textContent=icon;
+  document.getElementById('r-ttl').textContent=title;
+  var sessNote=totalSessions>1?' ('+totalSessions+' جلسات)':'';
+  document.getElementById('r-sub').textContent=acc+'% دقة — '+total+' مسألة'+sessNote;
+  if(acc>=60) confetti();
+}
+
+// inter-session screen (countdown 3 sec then auto-start)
+var isCount=0;
+function showInterSession(){
+  isCount=3;
+  document.getElementById('r-ico').textContent='⏸️';
+  document.getElementById('r-ttl').textContent='جلسة '+( currentSession-1)+' انتهت!';
+  document.getElementById('r-ok').textContent=sessionSc[sessionSc.length-1];
+  document.getElementById('r-no').textContent=sessionWr[sessionWr.length-1];
+  var t=sessionSc[sessionSc.length-1]+sessionWr[sessionWr.length-1];
+  var a=t>0?Math.round((sessionSc[sessionSc.length-1]/t)*100):0;
+  document.getElementById('r-acc').textContent=a+'%';
+  document.getElementById('r-ext').textContent=isCount;
+  document.getElementById('r-extlbl').textContent='ثوانٍ للجلسة '+currentSession;
+  document.getElementById('r-sub').textContent='الجلسة '+currentSession+' من '+totalSessions+' ستبدأ قريباً';
+  gp('pg-result');
+  // hide replay/home temporarily and show countdown
+  var cdi=setInterval(function(){
+    isCount--;
+    document.getElementById('r-ext').textContent=isCount;
+    if(isCount<=0){
+      clearInterval(cdi);
+      // start next session
+      if(isCD) _runCD();
+      else if(isAdv) _runAdv();
+      else _runCT();
+    }
+  },1000);
+}
+
+function replay(){
+  currentSession=1; sessionSc=[]; sessionWr=[];
+  if(isCD) _runCD(); else if(isAdv) _runAdv(); else _runCT();
+}
+
+function confetti(){
+  var bg=document.getElementById('r-bg'); bg.innerHTML='';
+  var em=['⭐','🎉','✨','🎊','💫','🌟'];
+  for(var i=0;i<16;i++){
+    var s=document.createElement('div'); s.className='rstar';
+    s.textContent=em[Math.floor(Math.random()*em.length)];
+    s.style.left=(Math.random()*100)+'%';
+    s.style.animationDelay=(Math.random()*2.5)+'s';
+    s.style.animationDuration=(2+Math.random()*2)+'s';
+    bg.appendChild(s);
+  }
+}
+
+// ══ HISTORY ══
+function renderHist(){
+  var el=document.getElementById('h-list');
+  if(!HD.length){ el.innerHTML='<div class="hempty">📭<br>لا يوجد سجل بعد</div>'; return; }
+  var icons={cd:'⏱️',ct:'🎯',adv:'🧠'};
+  var bgs={cd:'rgba(0,170,255,0.12)',ct:'rgba(255,107,0,0.12)',adv:'rgba(155,89,182,0.12)'};
+  el.innerHTML=HD.map(function(h){
+    var ic=icons[h.mode]||'🎯', bg=bgs[h.mode]||'rgba(0,170,255,0.12)';
+    var sc=h.acc>=70?'var(--green)':'var(--blue)';
+    return '<div class="hitem"><div class="hileft"><div class="hibadge" style="background:'+bg+'">'+ic+'</div><div><div class="himode">'+h.date+(h.sessions>1?' · '+h.sessions+' جلسات':'')+'</div><div class="hidet">✅'+h.score+' ❌'+h.wrong+' · '+h.acc+'% دقة</div></div></div><div class="hiscore" style="color:'+sc+'">'+h.score+'</div></div>';
+  }).join('');
+}
+function clrHist(){ if(confirm('مسح كل السجل؟')){ HD=[]; try{localStorage.setItem('riyadia_v1','[]');}catch(e){} renderHist(); refreshHome(); } }
+
+function refreshHome(){
+  document.getElementById('hs-games').textContent=HD.length;
+  var tc=0,best=0;
+  HD.forEach(function(h){ tc+=h.score; if(h.score>best)best=h.score; });
+  document.getElementById('hs-total').textContent=tc;
+  document.getElementById('hs-best').textContent=HD.length?best:'−';
+}
+
+refreshHome();
+</script>
+</body>
+</html>
+`;
+
+// عند التثبيت: خزن كل شيء في الكاش
 self.addEventListener('install', function(e) {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(ASSETS);
+      // خزن الـ HTML مباشرة كـ Response
+      var htmlResponse = new Response(APP_HTML, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+      return cache.put('/riyadiat/', htmlResponse).then(function() {
+        var htmlResponse2 = new Response(APP_HTML, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+        return cache.put('/riyadiat/index.html', htmlResponse2);
+      });
     })
   );
 });
- 
+
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
@@ -26,23 +1183,40 @@ self.addEventListener('activate', function(e) {
     }).then(function() { return self.clients.claim(); })
   );
 });
- 
+
 self.addEventListener('fetch', function(e) {
+  var url = e.request.url;
+  
+  // للخطوط من Google — حاول الشبكة أولاً ثم تجاهل
+  if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
+    e.respondWith(
+      fetch(e.request).catch(function() {
+        return new Response('', { status: 200 });
+      })
+    );
+    return;
+  }
+  
+  // لأيقونات manifest
+  if (url.includes('icon-') && url.includes('.png')) {
+    e.respondWith(
+      caches.match(e.request).then(function(cached) {
+        return cached || fetch(e.request).catch(function() {
+          return new Response('', { status: 404 });
+        });
+      })
+    );
+    return;
+  }
+
+  // لكل طلبات التطبيق — رجع HTML مباشرة
   e.respondWith(
     caches.match(e.request).then(function(cached) {
       if (cached) return cached;
-      return fetch(e.request).then(function(response) {
-        if (response && response.status === 200 && response.type === 'basic') {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache) {
-            cache.put(e.request, clone);
-          });
-        }
-        return response;
-      }).catch(function() {
-        return caches.match('/riyadiat/index.html');
+      // إذا لم يكن في الكاش، رجع الـ HTML الكامل
+      return new Response(APP_HTML, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     })
   );
 });
- 
