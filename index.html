@@ -1147,24 +1147,9 @@ function refreshHome(){
 
 refreshHome();
 
-// ══ Service Worker - يعمل بدون انترنت ══
+// Service Worker
 if ('serviceWorker' in navigator) {
-  // سجل فوراً بدون انتظار load
-  navigator.serviceWorker.register('/riyadiat/sw.js', { scope: '/riyadiat/' })
-    .then(function(reg) {
-      console.log('SW registered:', reg.scope);
-      // إذا كان SW جديد، فعّله فوراً
-      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-      reg.addEventListener('updatefound', function() {
-        var newSW = reg.installing;
-        newSW.addEventListener('statechange', function() {
-          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-            newSW.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-      });
-    })
-    .catch(function(e) { console.log('SW error:', e); });
+  navigator.serviceWorker.register('sw.js');
 }
 </script>
 </body>
